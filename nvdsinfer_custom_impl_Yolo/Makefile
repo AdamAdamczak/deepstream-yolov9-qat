@@ -23,7 +23,7 @@
 # https://www.github.com/marcoslucianops
 ################################################################################
 
-CUDA_VER=12.1
+CUDA_VER=11.4
 ifeq ($(CUDA_VER),)
 	$(error "CUDA_VER is not set")
 endif

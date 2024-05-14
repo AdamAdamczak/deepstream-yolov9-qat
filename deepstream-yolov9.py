@@ -134,16 +134,7 @@ def build_pipeline(media_file, gpu_id):
         return None
     pgie.set_property('config-file-path', "dstest1_pgie_config.txt")
 
-    logging.info("build_pipeline: Creating Tracker")
-    nvtracker = Gst.ElementFactory.make("nvtracker", "tracker") if use_tracker else None
-    if use_tracker and not nvtracker:
-        logging.error("build_pipeline: Unable to create tracker")
-        return None
-    if nvtracker:
-        nvtracker.set_property('tracker-width', 640)
-        nvtracker.set_property('tracker-height', 384)
-        nvtracker.set_property('ll-lib-file', '/opt/nvidia/deepstream/deepstream-6.3/lib/libnvds_nvmultiobjecttracker.so')
-        nvtracker.set_property('gpu-id', int(gpu_id))
+
 
     logging.info("build_pipeline: Creating Converter")
     nvvidconv = Gst.ElementFactory.make("nvvideoconvert", "converter")
@@ -181,44 +172,19 @@ def build_pipeline(media_file, gpu_id):
     nvosd.link(nvvidconv)
     nvvidconv.link(fake_sink)
 
-    osd_src_pad = nvosd.get_static_pad("src")
-    osd_src_pad.add_probe(Gst.PadProbeType.BUFFER, osd_src_pad_buffer_probe, 1)
+    if measure_latency:
+        osd_src_pad = nvosd.get_static_pad("src")
+        osd_src_pad.add_probe(Gst.PadProbeType.BUFFER, osd_src_pad_buffer_probe, 1)
 
     logging.info("build_pipeline: Pipeline construction complete")
     return pipeline
 
 
-def osd_sink_pad_buffer_probe(pad, info, u_data, frame_stats):
-    """
-    Buffer probe for OSD sink pad to measure inference time.
-    """
-    if start_time is None:
-        start_time = time.time()
-        logging.info("osd_sink_pad_buffer_probe: Starting timer")
-
-    infer_start_time = time.time()
-
-    gst_buffer = info.get_buffer()
-    if not gst_buffer:
-        logging.error("osd_sink_pad_buffer_probe: Unable to get GstBuffer")
-        return Gst.PadProbeReturn.OK
-
-    infer_end_time = time.time()
-
-    infer_duration = (infer_end_time - infer_start_time) * 1e9  # Convert seconds to nanoseconds
-    total_infer_time += infer_duration
-    frame_count += 1
-
-    logging.debug(f"osd_sink_pad_buffer_probe: Frame {frame_count}, Inference Duration {infer_duration} ns")
-
-    return Gst.PadProbeReturn.OK
-
-last_timestamp = None
 def osd_src_pad_buffer_probe(pad, info, u_data):
     """
     Buffer probe for OSD source pad to measure frame latency and log information.
     """
-
+    global last_timestamp, total_latency,total_frames
     gst_buffer = info.get_buffer()
     if not gst_buffer:
         logging.error("osd_src_pad_buffer_probe: Unable to get GstBuffer")
@@ -243,28 +209,21 @@ def osd_src_pad_buffer_probe(pad, info, u_data):
 
     return Gst.PadProbeReturn.OK
 
-def calculate_average_latency():
-    """
-    Calculate and log the average latency of processed frames.
-    """
-    global total_frames, total_latency
-    if total_frames > 0:
-        average_latency = total_latency / total_frames
-        logging.info(f"calculate_average_latency: Average Latency: {average_latency} ms")
-    else:
-        logging.warning("calculate_average_latency: No frames processed.")
-    return average_latency
+
 
         
         
 
 def main(args):
+    global measure_latency
     parser = argparse.ArgumentParser(description="Run the GStreamer pipeline with specified model and settings.")
     parser.add_argument("media_file", help="Path to the media file or URI.")
     parser.add_argument("--gpu-id", type=int, default=0, help="GPU ID to use.")
     parser.add_argument("--onnx-file", default="default.onnx", help="Path to the ONNX model file.")
     parser.add_argument("--precision", choices=["fp32", "fp16", "int8"], default="fp32", help="Model precision mode.")
+    parser.add_argument("--measure-latency", action="store_true", help="Enable latency measurement.")
     args = parser.parse_args()  
+    measure_latency = args.measure_latency
     
     generate_config_file(args.gpu_id, args.onnx_file, args.precision)
     Gst.init(None)

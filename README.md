@@ -1,7 +1,11 @@
 
 # deepstream-yolov9-qat
-
 This project focuses on implementing the YOLOv9 model on the Jetson Orin Nano, exploring various configurations to enhance real-time object detection performance.
+
+<div align="center">
+  <img src="examples/yolov9-qat.gif" alt="YOLOv9 Tracker">
+    <p>YOLOv9 Tracker in Action</p>
+</div>
 
 ## Acknowledgments
 
@@ -33,11 +37,12 @@ python3 deepstream-yolov9.py /path/to/media/file --gpu-id 0 --onnx-file /path/to
 -   `--onnx-file`: Path to the ONNX model file (default: "default.onnx").
 -   `--precision`: Model precision mode, one of `fp32`, `fp16`, or `int8` (default: `fp32`).
 
+
 ## Model Export to ONNX
 
-To export the model to the ONNX format, I utilized code from the following repositories: [[1]](https://github.com/levipereira/yolov9-qat/blob/master/export_qat.py) [[2]](https://github.com/marcoslucianops/DeepStream-Yolo/tree/master), which I modified to include the `DeepStreamOutput` class for ONNX compatibility:
+To export the model to the ONNX format, I utilized code from the following repositories: [[1]](https://github.com/levipereira/yolov9-qat), [[2]](https://github.com/marcoslucianops/DeepStream-Yolo/tree/master), which I modified to include the `DeepStreamOutput` class  in the Python file [export_qat.py](https://github.com/levipereira/yolov9-qat/blob/master/export_qat.py):
 
-```python3
+```python
 import torch
 import torch.nn as nn
 
@@ -64,6 +69,7 @@ torch.onnx.export(
     output_names=["boxes", "scores", "classes"]
 )
 ```
+To do the export, I used the Docker image nvcr.io/nvidia/pytorch:23.02-py3, which has everything needed for PyTorch and ONNX.
 ### Debugging
 
 To enable latency measurement for debugging, export the following environment variables:

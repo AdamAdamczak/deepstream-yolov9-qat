@@ -1,22 +1,5 @@
 #!/usr/bin/env python3
 
-################################################################################
-# SPDX-FileCopyrightText: Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-################################################################################
-import time
 import sys
 sys.path.append('../')
 import gi
@@ -91,8 +74,10 @@ def generate_config_file(gpu_id, onnx_file, precision):
     }
     with open('dstest1_pgie_config.txt', 'w') as configfile:
         config.write(configfile)
+
 def build_pipeline(media_file, gpu_id):
     """Build the GStreamer pipeline."""
+
     pipeline = Gst.Pipeline()
     if not pipeline:
         logging.error("build_pipeline: Unable to create Pipeline")
@@ -134,6 +119,15 @@ def build_pipeline(media_file, gpu_id):
         return None
     pgie.set_property('config-file-path', "dstest1_pgie_config.txt")
 
+    logging.info("build_pipeline: Creating Tracker")
+    tracker = Gst.ElementFactory.make("nvtracker", "tracker") 
+    if not tracker:
+        logging.error("build_pipeline: Unable to create Tracker")
+        return None
+    tracker.set_property('tracker-width', 640)
+    tracker.set_property('tracker-height', 384)
+    tracker.set_property('ll-lib-file', '/opt/nvidia/deepstream/deepstream-6.3/lib/libnvds_nvmultiobjecttracker.so')
+    tracker.set_property('gpu-id', 0)
 
 
     logging.info("build_pipeline: Creating Converter")
@@ -155,7 +149,7 @@ def build_pipeline(media_file, gpu_id):
         return None
 
     logging.info("build_pipeline: Adding elements to Pipeline")
-    elements = [source, h264parser, decoder, streammux, nvvidconv, pgie, nvosd, fake_sink]
+    elements = [source, h264parser, decoder, streammux, nvvidconv, pgie,tracker, nvosd, fake_sink]
 
 
     for element in elements:
@@ -168,9 +162,10 @@ def build_pipeline(media_file, gpu_id):
     streammux_sinkpad = streammux.get_request_pad("sink_0")
     decoder_srcpad.link(streammux_sinkpad)
     streammux.link(pgie)
-    pgie.link(nvosd)
-    nvosd.link(nvvidconv)
-    nvvidconv.link(fake_sink)
+    pgie.link(tracker)
+    tracker.link(nvvidconv)
+    nvvidconv.link(nvosd)
+    nvosd.link(fake_sink)
 
     if measure_latency:
         osd_src_pad = nvosd.get_static_pad("src")
@@ -246,6 +241,6 @@ def main(args):
     finally:
         pipeline.set_state(Gst.State.NULL)
         logging.info("Pipeline stopped")
-
+4
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
